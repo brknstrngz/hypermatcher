@@ -1,10 +1,6 @@
 package hyperscanner
 
-import (
-	"errors"
-
-	"github.com/flier/gohs/hyperscan"
-)
+import "github.com/flier/gohs/hyperscan"
 
 // ConcurrentWorker is a scanning worker
 type ConcurrentWorker struct {
@@ -15,10 +11,6 @@ type ConcurrentWorker struct {
 	scratch     *hyperscan.Scratch
 	err         error
 }
-
-var (
-	ErrWorkerUninitialized = errors.New("worker uninitialized")
-)
 
 // NewConcurrentWorker returns a worker
 func NewConcurrentWorker(requestChan chan concurrentScanRequest, stopChan chan struct{}) *ConcurrentWorker {
@@ -68,12 +60,7 @@ func (w *ConcurrentWorker) onScan(request concurrentScanRequest) {
 	response.err = w.db.Scan(
 		request.blocks,
 		w.scratch,
-		func(id uint, from, to uint64, flags uint, context interface{}) error {
-			var matched = context.(*[]uint)
-
-			*matched = append(*matched, id)
-			return nil
-		},
+		matchHandler,
 		&response.matched)
 
 	request.responseChan <- response

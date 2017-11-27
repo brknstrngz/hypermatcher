@@ -1,7 +1,6 @@
 package hyperscanner
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 
@@ -31,13 +30,6 @@ type concurrentScanResponse struct {
 	err     error
 }
 
-var (
-	ErrStarted     = errors.New("workers already started")
-	ErrNotStarted  = errors.New("workers not started")
-	ErrDBNotLoaded = errors.New("database not loaded")
-	ErrBusy        = errors.New("workers busy")
-)
-
 // NewConcurrentEngine returns a ConcurrentEngine
 func NewConcurrentEngine(numWorkers int) *ConcurrentEngine {
 	return &ConcurrentEngine{
@@ -53,63 +45,51 @@ func NewConcurrentEngine(numWorkers int) *ConcurrentEngine {
 
 // Update re-initializes the pattern database used by the
 // scanner, returning an error if any of them fails to parse
-func (cs *ConcurrentEngine) Update(patterns []string) error {
+func (ce *ConcurrentEngine) Update(patterns []string) error {
 	if len(patterns) == 0 {
-		return errors.New("error updating pattern database: patterns array cannot be empty")
+		return ErrNoPatterns
 	}
 
 	// do not update the pattern database if the workers are not running - that would block
 	var started bool
-	cs.mu.RLock()
-	started = cs.started
-	cs.mu.RUnlock()
+	ce.mu.RLock()
+	started = ce.started
+	ce.mu.RUnlock()
 	if !started {
 		return ErrNotStarted
 	}
 
 	// compile patterns and add them to the internal list, returning
 	// an error on the first pattern that fails to parse
-	var compiledPatterns = make([]*hyperscan.Pattern, len(patterns))
-	for idx, pattern := range patterns {
-		var compiledPattern, compileErr = hyperscan.ParsePattern(pattern)
-		if compileErr != nil {
-			return fmt.Errorf("error parsing pattern %s: %s", pattern, compileErr.Error())
-		}
-
-		compiledPattern.Id = idx
-		compiledPatterns[idx] = compiledPattern
-	}
-
-	// initialize a new database with the new patterns
-	var db, dbErr = hyperscan.NewVectoredDatabase(compiledPatterns...)
+	var db, compiledPatterns, dbErr = compilePatterns(patterns)
 	if dbErr != nil {
 		return fmt.Errorf("error updating pattern database: %s", dbErr.Error())
 	}
 
 	// if a previous database already exists, close it first
-	cs.mu.Lock()
-	if cs.loaded {
-		cs.db.Close()
+	ce.mu.Lock()
+	if ce.loaded {
+		ce.db.Close()
 	}
-	cs.db = db
-	cs.patterns = compiledPatterns
-	cs.loaded = true
-	cs.mu.Unlock()
+	ce.db = db
+	ce.patterns = compiledPatterns
+	ce.loaded = true
+	ce.mu.Unlock()
 	// send the new database to the workers
-	for _, worker := range cs.workers {
-		worker.refreshChan <- cs.db
+	for _, worker := range ce.workers {
+		worker.refreshChan <- ce.db
 	}
 
 	return nil
 }
 
-// Scan takes a vectored string corpus and returns a list of strings
+// Match takes a vectored byte corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
-func (cs *ConcurrentEngine) Scan(corpus []string) ([]string, error) {
+func (ce *ConcurrentEngine) Match(corpus [][]byte) ([]string, error) {
 	// if the database has not yet been loaded or started, return an error
-	cs.mu.RLock()
-	var loaded, started = cs.loaded, cs.started
-	cs.mu.RUnlock()
+	ce.mu.RLock()
+	var loaded, started = ce.loaded, ce.started
+	ce.mu.RUnlock()
 	switch {
 	case !loaded:
 		return nil, ErrDBNotLoaded
@@ -117,22 +97,16 @@ func (cs *ConcurrentEngine) Scan(corpus []string) ([]string, error) {
 		return nil, ErrNotStarted
 	}
 
-	// change the corpus representation from string to []byte
-	var corpusBlocks = make([][]byte, len(corpus))
-	for idx, corpusElement := range corpus {
-		corpusBlocks[idx] = stringToByteSlice(corpusElement)
-	}
-
 	// attempt to send the scan request in non-blocking
 	// mode, returning an error if all workers are busy
 	// the response is read from a per-request channel
 	var request = concurrentScanRequest{
-		blocks:       corpusBlocks,
+		blocks:       corpus,
 		responseChan: make(chan concurrentScanResponse),
 	}
 	var response concurrentScanResponse
 	select {
-	case cs.requestChan <- request: // request sent, must wait for response
+	case ce.requestChan <- request: // request sent, must wait for response
 		response = <-request.responseChan
 	default:
 		return nil, ErrBusy
@@ -149,53 +123,59 @@ func (cs *ConcurrentEngine) Scan(corpus []string) ([]string, error) {
 		matchedSieve[patIdx] = struct{}{}
 	}
 	var matchedPatterns = make([]string, len(matchedSieve))
-	cs.mu.RLock()
+	ce.mu.RLock()
 	for patternsIdx := range matchedSieve {
-		matchedPatterns[patternsIdx] = cs.patterns[patternsIdx].Expression.String()
+		matchedPatterns[patternsIdx] = ce.patterns[patternsIdx].Expression.String()
 	}
-	cs.mu.RUnlock()
+	ce.mu.RUnlock()
 
 	return matchedPatterns, nil
 }
 
-// Start starts the workers backing the concurrent engine
-func (cs *ConcurrentEngine) Start() error {
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
+// Match takes a vectored string corpus and returns a list of strings
+// representing patterns that matched the corpus and an optional error
+func (ce *ConcurrentEngine) MatchStrings(corpus []string) ([]string, error) {
+	return ce.Match(stringsToBytes(corpus))
+}
 
-	if cs.started {
+// Start starts the workers backing the concurrent engine
+func (ce *ConcurrentEngine) Start() error {
+	ce.mu.Lock()
+	defer ce.mu.Unlock()
+
+	if ce.started {
 		return ErrStarted
 	}
 
-	for idx := range cs.workers {
-		cs.workers[idx] = NewConcurrentWorker(cs.requestChan, cs.stopChan)
-		go cs.workers[idx].Start()
+	for idx := range ce.workers {
+		ce.workers[idx] = NewConcurrentWorker(ce.requestChan, ce.stopChan)
+		go ce.workers[idx].Start()
 	}
 
-	cs.started = true
+	ce.started = true
 
 	return nil
 }
 
 // Stop stops the workers backing the concurrent engine
-func (cs *ConcurrentEngine) Stop() error {
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
+func (ce *ConcurrentEngine) Stop() error {
+	ce.mu.Lock()
+	defer ce.mu.Unlock()
 
-	if !cs.started {
+	if !ce.started {
 		return ErrNotStarted
 	}
 
-	// close stopChan, signalling workers to stop
-	close(cs.stopChan)
+	// close stopChan, signaling workers to stop
+	close(ce.stopChan)
 
 	// close the database if it is loaded
-	if cs.loaded {
-		cs.db.Close()
-		cs.loaded = false
+	if ce.loaded {
+		ce.db.Close()
+		ce.loaded = false
 	}
 
-	cs.started = false
+	ce.started = false
 
 	return nil
 }
