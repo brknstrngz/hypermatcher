@@ -29,7 +29,7 @@ func NewSimpleEngine() *SimpleEngine {
 
 // Update re-initializes the pattern database used by the
 // scanner, returning an error if any of them fails to parse
-func (ce *SimpleEngine) Update(patterns []string) error {
+func (se *SimpleEngine) Update(patterns []string) error {
 	if len(patterns) == 0 {
 		return ErrNoPatterns
 	}
@@ -41,54 +41,54 @@ func (ce *SimpleEngine) Update(patterns []string) error {
 		return fmt.Errorf("error updating pattern database: %s", dbErr.Error())
 	}
 
-	ce.mu.Lock()
-	ce.db = db
-	ce.patterns = compiledPatterns
-	ce.loaded = true
+	se.mu.Lock()
+	se.db = db
+	se.patterns = compiledPatterns
+	se.loaded = true
 	var scratchErr error
-	switch ce.scratch {
+	switch se.scratch {
 	case nil:
-		ce.scratch, scratchErr = hyperscan.NewScratch(ce.db)
+		se.scratch, scratchErr = hyperscan.NewScratch(se.db)
 	default:
-		scratchErr = ce.scratch.Realloc(ce.db)
+		scratchErr = se.scratch.Realloc(se.db)
 	}
-	ce.mu.Unlock()
+	se.mu.Unlock()
 
 	return scratchErr
 }
 
 // Match takes a vectored string corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
-func (ce *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
+func (se *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
 	// if the database has not yet been loaded, return an error
-	ce.mu.RLock()
-	var loaded = ce.loaded
-	ce.mu.RUnlock()
+	se.mu.RLock()
+	var loaded = se.loaded
+	se.mu.RUnlock()
 	if !loaded {
 		return nil, ErrDBNotLoaded
 	}
 
 	var matched = make([]uint, 0)
-	ce.mu.Lock()
-	var scanErr = ce.db.Scan(
+	se.mu.Lock()
+	var scanErr = se.db.Scan(
 		corpus,
-		ce.scratch,
+		se.scratch,
 		matchHandler,
 		&matched)
 	if scanErr != nil {
-		ce.mu.Unlock()
+		se.mu.Unlock()
 		return nil, scanErr
 	}
-	ce.mu.Unlock()
+	se.mu.Unlock()
 
 	// response.matched contains indices of matched expressions. each
 	// index can appear more than once as every expression can match
 	// several of the input strings, so we aggregate them here
-	return matchedIdxToStrings(matched, ce.patterns, &ce.mu), nil
+	return matchedIdxToStrings(matched, se.patterns, &se.mu), nil
 }
 
 // Match takes a vectored string corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
-func (ce *SimpleEngine) MatchStrings(corpus []string) ([]string, error) {
-	return ce.Match(stringsToBytes(corpus))
+func (se *SimpleEngine) MatchStrings(corpus []string) ([]string, error) {
+	return se.Match(stringsToBytes(corpus))
 }

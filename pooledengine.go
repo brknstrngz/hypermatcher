@@ -45,16 +45,16 @@ func NewPooledEngine(numWorkers int) *PooledEngine {
 
 // Update re-initializes the pattern database used by the
 // scanner, returning an error if any of them fails to parse
-func (ce *PooledEngine) Update(patterns []string) error {
+func (pe *PooledEngine) Update(patterns []string) error {
 	if len(patterns) == 0 {
 		return ErrNoPatterns
 	}
 
 	// do not update the pattern database if the workers are not running - that would block
 	var started bool
-	ce.mu.RLock()
-	started = ce.started
-	ce.mu.RUnlock()
+	pe.mu.RLock()
+	started = pe.started
+	pe.mu.RUnlock()
 	if !started {
 		return ErrNotStarted
 	}
@@ -67,17 +67,17 @@ func (ce *PooledEngine) Update(patterns []string) error {
 	}
 
 	// if a previous database already exists, close it first
-	ce.mu.Lock()
-	if ce.loaded {
-		ce.db.Close()
+	pe.mu.Lock()
+	if pe.loaded {
+		pe.db.Close()
 	}
-	ce.db = db
-	ce.patterns = compiledPatterns
-	ce.loaded = true
-	ce.mu.Unlock()
+	pe.db = db
+	pe.patterns = compiledPatterns
+	pe.loaded = true
+	pe.mu.Unlock()
 	// send the new database to the workers
-	for _, worker := range ce.workers {
-		worker.refreshChan <- ce.db
+	for _, worker := range pe.workers {
+		worker.refreshChan <- pe.db
 	}
 
 	return nil
@@ -85,11 +85,11 @@ func (ce *PooledEngine) Update(patterns []string) error {
 
 // Match takes a vectored byte corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
-func (ce *PooledEngine) Match(corpus [][]byte) ([]string, error) {
+func (pe *PooledEngine) Match(corpus [][]byte) ([]string, error) {
 	// if the database has not yet been loaded or started, return an error
-	ce.mu.RLock()
-	var loaded, started = ce.loaded, ce.started
-	ce.mu.RUnlock()
+	pe.mu.RLock()
+	var loaded, started = pe.loaded, pe.started
+	pe.mu.RUnlock()
 	switch {
 	case !loaded:
 		return nil, ErrDBNotLoaded
@@ -108,7 +108,7 @@ func (ce *PooledEngine) Match(corpus [][]byte) ([]string, error) {
 		matched: make([]uint, 0),
 	}
 	select {
-	case ce.requestChan <- request: // request sent, must wait for response
+	case pe.requestChan <- request: // request sent, must wait for response
 		response = <-request.responseChan
 	default:
 		return nil, ErrBusy
@@ -120,53 +120,53 @@ func (ce *PooledEngine) Match(corpus [][]byte) ([]string, error) {
 	// response.matched contains indices of matched expressions. each
 	// index can appear more than once as every expression can match
 	// several of the input strings, so we aggregate them here
-	return matchedIdxToStrings(response.matched, ce.patterns, &ce.mu), nil
+	return matchedIdxToStrings(response.matched, pe.patterns, &pe.mu), nil
 }
 
 // Match takes a vectored string corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
-func (ce *PooledEngine) MatchStrings(corpus []string) ([]string, error) {
-	return ce.Match(stringsToBytes(corpus))
+func (pe *PooledEngine) MatchStrings(corpus []string) ([]string, error) {
+	return pe.Match(stringsToBytes(corpus))
 }
 
 // Start starts the workers backing the concurrent engine
-func (ce *PooledEngine) Start() error {
-	ce.mu.Lock()
-	defer ce.mu.Unlock()
+func (pe *PooledEngine) Start() error {
+	pe.mu.Lock()
+	defer pe.mu.Unlock()
 
-	if ce.started {
+	if pe.started {
 		return ErrStarted
 	}
 
-	for idx := range ce.workers {
-		ce.workers[idx] = NewPoolWorker(ce.requestChan, ce.stopChan)
-		go ce.workers[idx].Start()
+	for idx := range pe.workers {
+		pe.workers[idx] = NewPoolWorker(pe.requestChan, pe.stopChan)
+		go pe.workers[idx].Start()
 	}
 
-	ce.started = true
+	pe.started = true
 
 	return nil
 }
 
 // Stop stops the workers backing the concurrent engine
-func (ce *PooledEngine) Stop() error {
-	ce.mu.Lock()
-	defer ce.mu.Unlock()
+func (pe *PooledEngine) Stop() error {
+	pe.mu.Lock()
+	defer pe.mu.Unlock()
 
-	if !ce.started {
+	if !pe.started {
 		return ErrNotStarted
 	}
 
 	// close stopChan, signaling workers to stop
-	close(ce.stopChan)
+	close(pe.stopChan)
 
 	// close the database if it is loaded
-	if ce.loaded {
-		ce.db.Close()
-		ce.loaded = false
+	if pe.loaded {
+		pe.db.Close()
+		pe.loaded = false
 	}
 
-	ce.started = false
+	pe.started = false
 
 	return nil
 }
