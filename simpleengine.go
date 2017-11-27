@@ -1,4 +1,4 @@
-package hyperscanner
+package hypermatcher
 
 import (
 	"fmt"

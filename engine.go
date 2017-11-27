@@ -1,4 +1,4 @@
-package hyperscanner
+package hypermatcher
 
 // Engine is the hyperscanner pattern matching interface
 type Engine interface {

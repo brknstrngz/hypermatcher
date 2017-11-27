@@ -1,4 +1,4 @@
-package hyperscanner
+package hypermatcher
 
 import "github.com/flier/gohs/hyperscan"
 
