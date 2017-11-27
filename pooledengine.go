@@ -7,12 +7,12 @@ import (
 	"github.com/flier/gohs/hyperscan"
 )
 
-// ConcurrentEngine is a concurrent hyperscanner.Engine implementation
+// PooledEngine is a concurrent hypermatcher.Engine implementation
 // backed by a pool of goroutines with individual scratch space
-type ConcurrentEngine struct {
+type PooledEngine struct {
 	requestChan chan concurrentScanRequest
 	stopChan    chan struct{}
-	workers     []*ConcurrentWorker
+	workers     []*PoolWorker
 	patterns    []*hyperscan.Pattern
 	db          hyperscan.VectoredDatabase
 	loaded      bool
@@ -30,12 +30,12 @@ type concurrentScanResponse struct {
 	err     error
 }
 
-// NewConcurrentEngine returns a ConcurrentEngine
-func NewConcurrentEngine(numWorkers int) *ConcurrentEngine {
-	return &ConcurrentEngine{
+// NewPooledEngine returns a PooledEngine
+func NewPooledEngine(numWorkers int) *PooledEngine {
+	return &PooledEngine{
 		requestChan: make(chan concurrentScanRequest),
 		stopChan:    make(chan struct{}),
-		workers:     make([]*ConcurrentWorker, numWorkers),
+		workers:     make([]*PoolWorker, numWorkers),
 		patterns:    make([]*hyperscan.Pattern, 0),
 		loaded:      false,
 		started:     false,
@@ -45,7 +45,7 @@ func NewConcurrentEngine(numWorkers int) *ConcurrentEngine {
 
 // Update re-initializes the pattern database used by the
 // scanner, returning an error if any of them fails to parse
-func (ce *ConcurrentEngine) Update(patterns []string) error {
+func (ce *PooledEngine) Update(patterns []string) error {
 	if len(patterns) == 0 {
 		return ErrNoPatterns
 	}
@@ -85,7 +85,7 @@ func (ce *ConcurrentEngine) Update(patterns []string) error {
 
 // Match takes a vectored byte corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
-func (ce *ConcurrentEngine) Match(corpus [][]byte) ([]string, error) {
+func (ce *PooledEngine) Match(corpus [][]byte) ([]string, error) {
 	// if the database has not yet been loaded or started, return an error
 	ce.mu.RLock()
 	var loaded, started = ce.loaded, ce.started
@@ -104,7 +104,9 @@ func (ce *ConcurrentEngine) Match(corpus [][]byte) ([]string, error) {
 		blocks:       corpus,
 		responseChan: make(chan concurrentScanResponse),
 	}
-	var response concurrentScanResponse
+	var response = concurrentScanResponse{
+		matched: make([]uint, 0),
+	}
 	select {
 	case ce.requestChan <- request: // request sent, must wait for response
 		response = <-request.responseChan
@@ -118,28 +120,17 @@ func (ce *ConcurrentEngine) Match(corpus [][]byte) ([]string, error) {
 	// response.matched contains indices of matched expressions. each
 	// index can appear more than once as every expression can match
 	// several of the input strings, so we aggregate them here
-	var matchedSieve = make(map[uint]struct{}, 0)
-	for _, patIdx := range response.matched {
-		matchedSieve[patIdx] = struct{}{}
-	}
-	var matchedPatterns = make([]string, len(matchedSieve))
-	ce.mu.RLock()
-	for patternsIdx := range matchedSieve {
-		matchedPatterns[patternsIdx] = ce.patterns[patternsIdx].Expression.String()
-	}
-	ce.mu.RUnlock()
-
-	return matchedPatterns, nil
+	return matchedIdxToStrings(response.matched, ce.patterns, &ce.mu), nil
 }
 
 // Match takes a vectored string corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
-func (ce *ConcurrentEngine) MatchStrings(corpus []string) ([]string, error) {
+func (ce *PooledEngine) MatchStrings(corpus []string) ([]string, error) {
 	return ce.Match(stringsToBytes(corpus))
 }
 
 // Start starts the workers backing the concurrent engine
-func (ce *ConcurrentEngine) Start() error {
+func (ce *PooledEngine) Start() error {
 	ce.mu.Lock()
 	defer ce.mu.Unlock()
 
@@ -148,7 +139,7 @@ func (ce *ConcurrentEngine) Start() error {
 	}
 
 	for idx := range ce.workers {
-		ce.workers[idx] = NewConcurrentWorker(ce.requestChan, ce.stopChan)
+		ce.workers[idx] = NewPoolWorker(ce.requestChan, ce.stopChan)
 		go ce.workers[idx].Start()
 	}
 
@@ -158,7 +149,7 @@ func (ce *ConcurrentEngine) Start() error {
 }
 
 // Stop stops the workers backing the concurrent engine
-func (ce *ConcurrentEngine) Stop() error {
+func (ce *PooledEngine) Stop() error {
 	ce.mu.Lock()
 	defer ce.mu.Unlock()
 

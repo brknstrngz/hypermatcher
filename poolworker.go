@@ -2,8 +2,8 @@ package hyperscanner
 
 import "github.com/flier/gohs/hyperscan"
 
-// ConcurrentWorker is a scanning worker
-type ConcurrentWorker struct {
+// PoolWorker is a scanning worker
+type PoolWorker struct {
 	stopChan    chan struct{}
 	requestChan chan concurrentScanRequest
 	refreshChan chan hyperscan.VectoredDatabase
@@ -12,9 +12,9 @@ type ConcurrentWorker struct {
 	err         error
 }
 
-// NewConcurrentWorker returns a worker
-func NewConcurrentWorker(requestChan chan concurrentScanRequest, stopChan chan struct{}) *ConcurrentWorker {
-	return &ConcurrentWorker{
+// NewPoolWorker returns a worker
+func NewPoolWorker(requestChan chan concurrentScanRequest, stopChan chan struct{}) *PoolWorker {
+	return &PoolWorker{
 		requestChan: requestChan,
 		stopChan:    stopChan,
 		refreshChan: make(chan hyperscan.VectoredDatabase),
@@ -23,7 +23,7 @@ func NewConcurrentWorker(requestChan chan concurrentScanRequest, stopChan chan s
 	}
 }
 
-func (w *ConcurrentWorker) Start() {
+func (w *PoolWorker) Start() {
 	for {
 		select {
 		case request := <-w.requestChan:
@@ -37,7 +37,7 @@ func (w *ConcurrentWorker) Start() {
 	}
 }
 
-func (w *ConcurrentWorker) onUpdateDB(newDB hyperscan.VectoredDatabase) {
+func (w *PoolWorker) onUpdateDB(newDB hyperscan.VectoredDatabase) {
 	w.db = newDB
 	switch w.scratch {
 	case nil:
@@ -47,7 +47,7 @@ func (w *ConcurrentWorker) onUpdateDB(newDB hyperscan.VectoredDatabase) {
 	}
 }
 
-func (w *ConcurrentWorker) onScan(request concurrentScanRequest) {
+func (w *PoolWorker) onScan(request concurrentScanRequest) {
 	if w.err != nil {
 		request.responseChan <- concurrentScanResponse{err: w.err}
 		return
@@ -66,6 +66,6 @@ func (w *ConcurrentWorker) onScan(request concurrentScanRequest) {
 	request.responseChan <- response
 }
 
-func (w *ConcurrentWorker) onStop() {
+func (w *PoolWorker) onStop() {
 	w.scratch.Free()
 }

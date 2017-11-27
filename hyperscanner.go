@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"unsafe"
 
+	"sync"
+
 	"github.com/flier/gohs/hyperscan"
 )
 
@@ -46,6 +48,22 @@ var matchHandler = func(id uint, from, to uint64, flags uint, context interface{
 	*matched = append(*matched, id)
 
 	return nil
+}
+
+func matchedIdxToStrings(matched []uint, patterns []*hyperscan.Pattern, readLock *sync.RWMutex) []string {
+	var matchedSieve = make(map[uint]struct{}, 0)
+	for _, patIdx := range matched {
+		matchedSieve[patIdx] = struct{}{}
+	}
+
+	var matchedPatterns = make([]string, len(matchedSieve))
+	readLock.RLock()
+	for patternsIdx := range matchedSieve {
+		matchedPatterns[patternsIdx] = patterns[patternsIdx].Expression.String()
+	}
+	readLock.RUnlock()
+
+	return matchedPatterns
 }
 
 func stringsToBytes(corpus []string) [][]byte {

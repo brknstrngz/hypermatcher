@@ -7,9 +7,9 @@ import (
 	"github.com/flier/gohs/hyperscan"
 )
 
-// ConsecutiveEngine is a simple hyperscanner.Engine implementation
-// with a single hyperscan.Scratch
-type ConsecutiveEngine struct {
+// SimpleEngine is a simple hypermatcher.Engine implementation
+// with a single hyperscan.Scratch protected by a mutex
+type SimpleEngine struct {
 	patterns []*hyperscan.Pattern
 	db       hyperscan.VectoredDatabase
 	scratch  *hyperscan.Scratch
@@ -17,9 +17,9 @@ type ConsecutiveEngine struct {
 	mu       sync.RWMutex
 }
 
-// NewConsecutiveEngine returns a ConsecutiveEngine
-func NewConsecutiveEngine() *ConsecutiveEngine {
-	return &ConsecutiveEngine{
+// NewSimpleEngine returns a SimpleEngine
+func NewSimpleEngine() *SimpleEngine {
+	return &SimpleEngine{
 		patterns: make([]*hyperscan.Pattern, 0),
 		scratch:  nil,
 		loaded:   false,
@@ -29,7 +29,7 @@ func NewConsecutiveEngine() *ConsecutiveEngine {
 
 // Update re-initializes the pattern database used by the
 // scanner, returning an error if any of them fails to parse
-func (ce *ConsecutiveEngine) Update(patterns []string) error {
+func (ce *SimpleEngine) Update(patterns []string) error {
 	if len(patterns) == 0 {
 		return ErrNoPatterns
 	}
@@ -59,7 +59,7 @@ func (ce *ConsecutiveEngine) Update(patterns []string) error {
 
 // Match takes a vectored string corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
-func (ce *ConsecutiveEngine) Match(corpus [][]byte) ([]string, error) {
+func (ce *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
 	// if the database has not yet been loaded, return an error
 	ce.mu.RLock()
 	var loaded = ce.loaded
@@ -84,22 +84,11 @@ func (ce *ConsecutiveEngine) Match(corpus [][]byte) ([]string, error) {
 	// response.matched contains indices of matched expressions. each
 	// index can appear more than once as every expression can match
 	// several of the input strings, so we aggregate them here
-	var matchedSieve = make(map[uint]struct{}, 0)
-	for _, patIdx := range matched {
-		matchedSieve[patIdx] = struct{}{}
-	}
-	var matchedPatterns = make([]string, len(matchedSieve))
-	ce.mu.RLock()
-	for patternsIdx := range matchedSieve {
-		matchedPatterns[patternsIdx] = ce.patterns[patternsIdx].Expression.String()
-	}
-	ce.mu.RUnlock()
-
-	return matchedPatterns, nil
+	return matchedIdxToStrings(matched, ce.patterns, &ce.mu), nil
 }
 
 // Match takes a vectored string corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
-func (ce *ConsecutiveEngine) MatchStrings(corpus []string) ([]string, error) {
+func (ce *SimpleEngine) MatchStrings(corpus []string) ([]string, error) {
 	return ce.Match(stringsToBytes(corpus))
 }
