@@ -149,9 +149,11 @@ func (cs *ConcurrentEngine) Scan(corpus []string) ([]string, error) {
 		matchedSieve[patIdx] = struct{}{}
 	}
 	var matchedPatterns = make([]string, len(matchedSieve))
+	cs.mu.RLock()
 	for patternsIdx := range matchedSieve {
 		matchedPatterns[patternsIdx] = cs.patterns[patternsIdx].Expression.String()
 	}
+	cs.mu.RUnlock()
 
 	return matchedPatterns, nil
 }
