@@ -4,9 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"unsafe"
-
 	"sync"
+	"unsafe"
 
 	"github.com/flier/gohs/hyperscan"
 )

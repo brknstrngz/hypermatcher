@@ -12,7 +12,7 @@ import (
 type PooledEngine struct {
 	requestChan chan concurrentScanRequest
 	stopChan    chan struct{}
-	workers     []*PoolWorker
+	workers     []*poolWorker
 	patterns    []*hyperscan.Pattern
 	db          hyperscan.VectoredDatabase
 	loaded      bool
@@ -35,7 +35,7 @@ func NewPooledEngine(numWorkers int) *PooledEngine {
 	return &PooledEngine{
 		requestChan: make(chan concurrentScanRequest),
 		stopChan:    make(chan struct{}),
-		workers:     make([]*PoolWorker, numWorkers),
+		workers:     make([]*poolWorker, numWorkers),
 		patterns:    make([]*hyperscan.Pattern, 0),
 		loaded:      false,
 		started:     false,
@@ -129,7 +129,7 @@ func (pe *PooledEngine) MatchStrings(corpus []string) ([]string, error) {
 	return pe.Match(stringsToBytes(corpus))
 }
 
-// Start starts the workers backing the concurrent engine
+// start starts the workers backing the concurrent engine
 func (pe *PooledEngine) Start() error {
 	pe.mu.Lock()
 	defer pe.mu.Unlock()
@@ -139,8 +139,8 @@ func (pe *PooledEngine) Start() error {
 	}
 
 	for idx := range pe.workers {
-		pe.workers[idx] = NewPoolWorker(pe.requestChan, pe.stopChan)
-		go pe.workers[idx].Start()
+		pe.workers[idx] = newPoolWorker(pe.requestChan, pe.stopChan)
+		go pe.workers[idx].start()
 	}
 
 	pe.started = true
