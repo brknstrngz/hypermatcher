@@ -1,6 +1,8 @@
 package hypermatcher
 
-import "github.com/flier/gohs/hyperscan"
+import (
+	"github.com/flier/gohs/hyperscan"
+)
 
 // poolWorker is a matching worker
 type poolWorker struct {
@@ -67,5 +69,7 @@ func (pw *poolWorker) onScan(request concurrentScanRequest) {
 }
 
 func (pw *poolWorker) onStop() {
-	pw.scratch.Free()
+	if pw.scratch != nil {
+		pw.scratch.Free()
+	}
 }
