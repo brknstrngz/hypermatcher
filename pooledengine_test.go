@@ -59,7 +59,9 @@ func Test_PooledEngineUpdatePatterns(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		var err = tt.engineGen().Update(tt.patterns)
+		var engine = tt.engineGen()
+		var err = engine.Update(tt.patterns)
+		engine.Stop()
 
 		if !reflect.DeepEqual(err, tt.wantErr) {
 			t.Errorf("%s got: %v, want: %v", tt.name, err, tt.wantErr)
