@@ -44,13 +44,15 @@ func (se *SimpleEngine) Update(patterns []string) error {
 	se.mu.Lock()
 	se.db = db
 	se.patterns = compiledPatterns
-	se.loaded = true
 	var scratchErr error
 	switch se.scratch {
 	case nil:
 		se.scratch, scratchErr = hyperscan.NewScratch(se.db)
 	default:
 		scratchErr = se.scratch.Realloc(se.db)
+	}
+	if scratchErr == nil {
+		se.loaded = true
 	}
 	se.mu.Unlock()
 
@@ -87,7 +89,7 @@ func (se *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
 	return matchedIdxToStrings(matched, se.patterns, &se.mu), nil
 }
 
-// Match takes a vectored string corpus and returns a list of strings
+// MatchStrings takes a vectored string corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
 func (se *SimpleEngine) MatchStrings(corpus []string) ([]string, error) {
 	return se.Match(stringsToBytes(corpus))

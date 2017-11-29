@@ -123,13 +123,13 @@ func (pe *PooledEngine) Match(corpus [][]byte) ([]string, error) {
 	return matchedIdxToStrings(response.matched, pe.patterns, &pe.mu), nil
 }
 
-// Match takes a vectored string corpus and returns a list of strings
+// MatchStrings takes a vectored string corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
 func (pe *PooledEngine) MatchStrings(corpus []string) ([]string, error) {
 	return pe.Match(stringsToBytes(corpus))
 }
 
-// start starts the workers backing the concurrent engine
+// Start starts the workers backing the concurrent engine
 func (pe *PooledEngine) Start() error {
 	pe.mu.Lock()
 	defer pe.mu.Unlock()

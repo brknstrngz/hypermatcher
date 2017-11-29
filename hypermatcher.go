@@ -34,12 +34,17 @@ func compilePatterns(patterns []string) (hyperscan.VectoredDatabase, []*hypersca
 	}
 
 	// initialize a new database with the new patterns
-	var db, dbErr = hyperscan.NewVectoredDatabase(compiledPatterns...)
-	if dbErr != nil {
-		return nil, nil, fmt.Errorf("error updating pattern database: %s", dbErr.Error())
+	var builder = &hyperscan.DatabaseBuilder{
+		Patterns: compiledPatterns,
+		Mode:     hyperscan.VectoredMode,
+		Platform: hyperscan.PopulatePlatform(),
+	}
+	var db, err = builder.Build()
+	if err != nil {
+		return nil, nil, fmt.Errorf("error updating pattern database: %s", err.Error())
 	}
 
-	return db, compiledPatterns, nil
+	return db.(hyperscan.VectoredDatabase), compiledPatterns, nil
 }
 
 var matchHandler = func(id uint, from, to uint64, flags uint, context interface{}) error {
