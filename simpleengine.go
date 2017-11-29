@@ -3,6 +3,7 @@ package hypermatcher
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/flier/gohs/hyperscan"
 )
@@ -13,7 +14,7 @@ type SimpleEngine struct {
 	patterns []*hyperscan.Pattern
 	db       hyperscan.VectoredDatabase
 	scratch  *hyperscan.Scratch
-	loaded   bool
+	loaded   uint32
 	mu       sync.RWMutex
 }
 
@@ -21,8 +22,6 @@ type SimpleEngine struct {
 func NewSimpleEngine() *SimpleEngine {
 	return &SimpleEngine{
 		patterns: make([]*hyperscan.Pattern, 0),
-		scratch:  nil,
-		loaded:   false,
 		mu:       sync.RWMutex{},
 	}
 }
@@ -52,7 +51,7 @@ func (se *SimpleEngine) Update(patterns []string) error {
 		scratchErr = se.scratch.Realloc(se.db)
 	}
 	if scratchErr == nil {
-		se.loaded = true
+		atomic.StoreUint32(&se.loaded, 1)
 	}
 	se.mu.Unlock()
 
@@ -63,11 +62,8 @@ func (se *SimpleEngine) Update(patterns []string) error {
 // representing patterns that matched the corpus and an optional error
 func (se *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
 	// if the database has not yet been loaded, return an error
-	se.mu.RLock()
-	var loaded = se.loaded
-	se.mu.RUnlock()
-	if !loaded {
-		return nil, ErrDBNotLoaded
+	if atomic.LoadUint32(&se.loaded) != 1 {
+		return nil, ErrNotLoaded
 	}
 
 	var matched = make([]uint, 0)
