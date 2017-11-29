@@ -7,8 +7,8 @@
 
 ```go
 var (
-	ErrDBNotLoaded = errors.New("database not loaded")
-	ErrNoPatterns  = errors.New("no patterns specified")
+	ErrNotLoaded  = errors.New("database not loaded")
+	ErrNoPatterns = errors.New("no patterns specified")
 )
 ```
 
