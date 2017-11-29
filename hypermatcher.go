@@ -11,12 +11,8 @@ import (
 )
 
 var (
-	ErrStarted             = errors.New("workers already started")
-	ErrNotStarted          = errors.New("workers not started")
-	ErrDBNotLoaded         = errors.New("database not loaded")
-	ErrBusy                = errors.New("workers busy")
-	ErrNoPatterns          = errors.New("no patterns specified")
-	ErrWorkerUninitialized = errors.New("worker uninitialized")
+	ErrDBNotLoaded = errors.New("database not loaded")
+	ErrNoPatterns  = errors.New("no patterns specified")
 )
 
 func compilePatterns(patterns []string) (hyperscan.VectoredDatabase, []*hyperscan.Pattern, error) {
@@ -61,9 +57,11 @@ func matchedIdxToStrings(matched []uint, patterns []*hyperscan.Pattern, readLock
 	}
 
 	var matchedPatterns = make([]string, len(matchedSieve))
+	var matchPatternsIdx int
 	readLock.RLock()
 	for patternsIdx := range matchedSieve {
-		matchedPatterns[patternsIdx] = patterns[patternsIdx].Expression.String()
+		matchedPatterns[matchPatternsIdx] = patterns[patternsIdx].Expression.String()
+		matchPatternsIdx++
 	}
 	readLock.RUnlock()
 

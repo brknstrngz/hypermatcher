@@ -7,12 +7,8 @@
 
 ```go
 var (
-	ErrStarted             = errors.New("workers already started")
-	ErrNotStarted          = errors.New("workers not started")
-	ErrDBNotLoaded         = errors.New("database not loaded")
-	ErrBusy                = errors.New("workers busy")
-	ErrNoPatterns          = errors.New("no patterns specified")
-	ErrWorkerUninitialized = errors.New("worker uninitialized")
+	ErrDBNotLoaded = errors.New("database not loaded")
+	ErrNoPatterns  = errors.New("no patterns specified")
 )
 ```
 
@@ -32,61 +28,6 @@ type Engine interface {
 ```
 
 Engine is the hyperscanner pattern matching interface
-
-#### type PooledEngine
-
-```go
-type PooledEngine struct {
-}
-```
-
-PooledEngine is a concurrent hypermatcher.Engine implementation backed by a pool
-of goroutines with individual scratch space
-
-#### func  NewPooledEngine
-
-```go
-func NewPooledEngine(numWorkers int) *PooledEngine
-```
-NewPooledEngine returns a PooledEngine
-
-#### func (*PooledEngine) Match
-
-```go
-func (pe *PooledEngine) Match(corpus [][]byte) ([]string, error)
-```
-Match takes a vectored byte corpus and returns a list of strings representing
-patterns that matched the corpus and an optional error
-
-#### func (*PooledEngine) MatchStrings
-
-```go
-func (pe *PooledEngine) MatchStrings(corpus []string) ([]string, error)
-```
-MatchStrings takes a vectored string corpus and returns a list of strings
-representing patterns that matched the corpus and an optional error
-
-#### func (*PooledEngine) Start
-
-```go
-func (pe *PooledEngine) Start() error
-```
-Start starts the workers in the pool
-
-#### func (*PooledEngine) Stop
-
-```go
-func (pe *PooledEngine) Stop() error
-```
-Stop stops the workers in the pool
-
-#### func (*PooledEngine) Update
-
-```go
-func (pe *PooledEngine) Update(patterns []string) error
-```
-Update re-initializes the pattern database used by the scanner, returning an
-error if any of them fails to parse
 
 #### type SimpleEngine
 
