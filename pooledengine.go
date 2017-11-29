@@ -129,7 +129,7 @@ func (pe *PooledEngine) MatchStrings(corpus []string) ([]string, error) {
 	return pe.Match(stringsToBytes(corpus))
 }
 
-// Start starts the workers backing the concurrent engine
+// Start starts the workers in the pool
 func (pe *PooledEngine) Start() error {
 	pe.mu.Lock()
 	defer pe.mu.Unlock()
@@ -148,7 +148,7 @@ func (pe *PooledEngine) Start() error {
 	return nil
 }
 
-// Stop stops the workers backing the concurrent engine
+// Stop stops the workers in the pool
 func (pe *PooledEngine) Stop() error {
 	pe.mu.Lock()
 	defer pe.mu.Unlock()
