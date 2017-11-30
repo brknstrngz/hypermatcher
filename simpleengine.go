@@ -35,7 +35,13 @@ func (se *SimpleEngine) Update(patterns []string) error {
 
 	// compile patterns and add them to the internal list, returning
 	// an error on the first pattern that fails to parse
-	var db, compiledPatterns, dbErr = compilePatterns(patterns)
+	var compiledPatterns, compileErr = compilePatterns(patterns)
+	if compileErr != nil {
+		return fmt.Errorf("error updating pattern database: %s", compileErr.Error())
+	}
+
+	// build the pattern database
+	var patternDb, dbErr = buildDatabase(compiledPatterns)
 	if dbErr != nil {
 		return fmt.Errorf("error updating pattern database: %s", dbErr.Error())
 	}
@@ -44,7 +50,7 @@ func (se *SimpleEngine) Update(patterns []string) error {
 	if se.isLoaded() {
 		se.db.Close()
 	}
-	se.db = db
+	se.db = patternDb
 	se.patterns = compiledPatterns
 	var scratchErr error
 	switch se.scratch {

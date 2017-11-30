@@ -16,31 +16,36 @@ var (
 	ErrNoPatterns = errors.New("no patterns specified")
 )
 
-func compilePatterns(patterns []string) (hyperscan.VectoredDatabase, []*hyperscan.Pattern, error) {
+func compilePatterns(patterns []string) ([]*hyperscan.Pattern, error) {
 	// compile patterns and add them to the internal list, returning
 	// an error on the first pattern that fails to parse
 	var compiledPatterns = make([]*hyperscan.Pattern, len(patterns))
 	for idx, pattern := range patterns {
 		var compiledPattern, compileErr = hyperscan.ParsePattern(pattern)
 		if compileErr != nil {
-			return nil, nil, fmt.Errorf("error parsing pattern %s: %s", pattern, compileErr.Error())
+			return nil, fmt.Errorf("error parsing pattern %s: %s", pattern, compileErr.Error())
 		}
 
 		compiledPattern.Id = idx
 		compiledPatterns[idx] = compiledPattern
 	}
+
+	return compiledPatterns, nil
+}
+
+func buildDatabase(patterns []*hyperscan.Pattern) (hyperscan.VectoredDatabase, error) {
 	// initialize a new database with the new patterns
 	var builder = &hyperscan.DatabaseBuilder{
-		Patterns: compiledPatterns,
+		Patterns: patterns,
 		Mode:     hyperscan.VectoredMode,
 		Platform: hyperscan.PopulatePlatform(),
 	}
 	var db, err = builder.Build()
 	if err != nil {
-		return nil, nil, fmt.Errorf("error updating pattern database: %s", err.Error())
+		return nil, fmt.Errorf("error updating pattern database: %s", err.Error())
 	}
 
-	return db.(hyperscan.VectoredDatabase), compiledPatterns, nil
+	return db.(hyperscan.VectoredDatabase), nil
 }
 
 var matchHandler = func(id uint, from, to uint64, flags uint, context interface{}) error {
