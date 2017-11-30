@@ -22,7 +22,7 @@ func Test_SimpleEngineUpdatePatterns(t *testing.T) {
 		{
 			"Invalid pattern flag",
 			[]string{"/pattern/z"},
-			errors.New("error updating pattern database: error parsing pattern /pattern/z: invalid pattern, unknown flag `z`"),
+			errors.New("error updating pattern database: invalid pattern, unknown flag `z`"),
 		},
 	}
 
@@ -143,11 +143,11 @@ func Test_SimpleEngineMatch(t *testing.T) {
 		var matches, err = tt.engineGen().MatchStrings(tt.corpus)
 
 		if !reflect.DeepEqual(matches, tt.wantMatches) {
-			t.Errorf("got: %#v, want: %#v", matches, tt.wantMatches)
+			t.Errorf("%s got: %#v, want: %#v", tt.name, matches, tt.wantMatches)
 		}
 
 		if !reflect.DeepEqual(err, tt.wantErr) {
-			t.Errorf("got: %#v, want: %#v", err, tt.wantErr)
+			t.Errorf("%s got: %#v, want: %#v", tt.name, err, tt.wantErr)
 		}
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
+	"sync"
 	"unsafe"
 
 	"github.com/flier/gohs/hyperscan"
@@ -17,17 +19,42 @@ var (
 )
 
 func compilePatterns(patterns []string) ([]*hyperscan.Pattern, error) {
-	// compile patterns and add them to the internal list, returning
-	// an error on the first pattern that fails to parse
+	// pattern compilation can run concurrently with a sizable speedup:
+	// in one goroutine for each available CPU we try to compile each
+	// pattern, adding the compiled version to the compiledPatterns
+	// slice on success or adding the error to the compileErrors slice
+	// on failure
+	// as goroutines operate on different subsets of preallocated slices
+	// we can avoid locking
+	var wg sync.WaitGroup
 	var compiledPatterns = make([]*hyperscan.Pattern, len(patterns))
-	for idx, pattern := range patterns {
-		var compiledPattern, compileErr = hyperscan.ParsePattern(pattern)
-		if compileErr != nil {
-			return nil, fmt.Errorf("error parsing pattern %s: %s", pattern, compileErr.Error())
-		}
+	var compileErrors = make([]error, len(patterns))
+	var patternRanges = subSlices(compiledPatterns, runtime.NumCPU())
+	for _, patternRange := range patternRanges {
+		wg.Add(1)
+		go func(patternSet [2]int) {
+		breakLoop:
+			for idx := patternSet[0]; idx < patternSet[1]; idx++ {
+				var compiledPattern, compileErr = hyperscan.ParsePattern(patterns[idx])
+				switch compileErr {
+				case nil:
+					compiledPattern.Id = idx
+					compiledPatterns[idx] = compiledPattern
+				default:
+					compileErrors[idx] = compileErr
+					break breakLoop
+				}
+			}
+			wg.Done()
+		}(patternRange)
+	}
+	wg.Wait()
 
-		compiledPattern.Id = idx
-		compiledPatterns[idx] = compiledPattern
+	// check for errors, returning the first one found
+	for _, compileError := range compileErrors {
+		if compileError != nil {
+			return nil, compileError
+		}
 	}
 
 	return compiledPatterns, nil
@@ -90,4 +117,19 @@ func stringToByteSlice(input string) []byte {
 	}
 
 	return *(*[]byte)(unsafe.Pointer(&sliceHeader))
+}
+
+func subSlices(slice []*hyperscan.Pattern, numSlices int) [][2]int {
+	var elemsPerPiece = len(slice) / numSlices
+	var splitIndices = make([][2]int, 0)
+
+	for i := 0; i < numSlices; i++ {
+		splitIndices = append(splitIndices, [2]int{i * elemsPerPiece, (i + 1) * elemsPerPiece})
+	}
+
+	if numSlices*elemsPerPiece < len(slice) {
+		splitIndices = append(splitIndices, [2]int{numSlices * elemsPerPiece, len(slice)})
+	}
+
+	return splitIndices
 }
