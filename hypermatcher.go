@@ -4,14 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sync"
 	"unsafe"
 
 	"github.com/flier/gohs/hyperscan"
 )
 
 var (
-	ErrNotLoaded  = errors.New("database not loaded")
+	// ErrNotLoaded is returned when Match() is invoked while the pattern database is not compiled and loaded
+	ErrNotLoaded = errors.New("database not loaded")
+	// ErrNoPatterns is returned when Update() is invoked with an empty pattern slice
 	ErrNoPatterns = errors.New("no patterns specified")
 )
 
@@ -28,7 +29,6 @@ func compilePatterns(patterns []string) (hyperscan.VectoredDatabase, []*hypersca
 		compiledPattern.Id = idx
 		compiledPatterns[idx] = compiledPattern
 	}
-
 	// initialize a new database with the new patterns
 	var builder = &hyperscan.DatabaseBuilder{
 		Patterns: compiledPatterns,
@@ -50,7 +50,7 @@ var matchHandler = func(id uint, from, to uint64, flags uint, context interface{
 	return nil
 }
 
-func matchedIdxToStrings(matched []uint, patterns []*hyperscan.Pattern, readLock *sync.RWMutex) []string {
+func matchedIdxToStrings(matched []uint, patterns []*hyperscan.Pattern) []string {
 	var matchedSieve = make(map[uint]struct{}, 0)
 	for _, patIdx := range matched {
 		matchedSieve[patIdx] = struct{}{}
@@ -58,12 +58,10 @@ func matchedIdxToStrings(matched []uint, patterns []*hyperscan.Pattern, readLock
 
 	var matchedPatterns = make([]string, len(matchedSieve))
 	var matchPatternsIdx int
-	readLock.RLock()
 	for patternsIdx := range matchedSieve {
 		matchedPatterns[matchPatternsIdx] = patterns[patternsIdx].Expression.String()
 		matchPatternsIdx++
 	}
-	readLock.RUnlock()
 
 	return matchedPatterns
 }

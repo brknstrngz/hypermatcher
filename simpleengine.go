@@ -41,6 +41,9 @@ func (se *SimpleEngine) Update(patterns []string) error {
 	}
 
 	se.mu.Lock()
+	if se.isLoaded() {
+		se.db.Close()
+	}
 	se.db = db
 	se.patterns = compiledPatterns
 	var scratchErr error
@@ -51,7 +54,7 @@ func (se *SimpleEngine) Update(patterns []string) error {
 		scratchErr = se.scratch.Realloc(se.db)
 	}
 	if scratchErr == nil {
-		atomic.StoreUint32(&se.loaded, 1)
+		se.setLoaded()
 	}
 	se.mu.Unlock()
 
@@ -62,11 +65,12 @@ func (se *SimpleEngine) Update(patterns []string) error {
 // representing patterns that matched the corpus and an optional error
 func (se *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
 	// if the database has not yet been loaded, return an error
-	if atomic.LoadUint32(&se.loaded) != 1 {
+	if !se.isLoaded() {
 		return nil, ErrNotLoaded
 	}
 
 	var matched = make([]uint, 0)
+
 	se.mu.Lock()
 	var scanErr = se.db.Scan(
 		corpus,
@@ -81,12 +85,25 @@ func (se *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
 
 	// response.matched contains indices of matched expressions. each
 	// index can appear more than once as every expression can match
-	// several of the input strings, so we aggregate them here
-	return matchedIdxToStrings(matched, se.patterns, &se.mu), nil
+	// several of the input strings, so we aggregate them here. we hold
+	// a read lock on se.patterns in case Update() is called during aggregation
+	se.mu.RLock()
+	var ret = matchedIdxToStrings(matched, se.patterns)
+	se.mu.RUnlock()
+
+	return ret, nil
 }
 
 // MatchStrings takes a vectored string corpus and returns a list of strings
 // representing patterns that matched the corpus and an optional error
 func (se *SimpleEngine) MatchStrings(corpus []string) ([]string, error) {
 	return se.Match(stringsToBytes(corpus))
+}
+
+func (se *SimpleEngine) isLoaded() bool {
+	return atomic.LoadUint32(&se.loaded) == 1
+}
+
+func (se *SimpleEngine) setLoaded() {
+	atomic.StoreUint32(&se.loaded, 1)
 }
