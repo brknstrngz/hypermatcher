@@ -41,27 +41,28 @@ func (se *SimpleEngine) Update(patterns []string) error {
 	}
 
 	// build the pattern database
-	var patternDb, dbErr = buildDatabase(compiledPatterns)
+	var newDB, dbErr = buildDatabase(compiledPatterns)
 	if dbErr != nil {
 		return fmt.Errorf("error updating pattern database: %s", dbErr.Error())
+	}
+
+	// allocate new scratch space
+	var newScratch, scratchErr = hyperscan.NewScratch(newDB)
+	if scratchErr != nil {
+		return fmt.Errorf("error updating pattern database: %s", scratchErr.Error())
 	}
 
 	se.mu.Lock()
 	if se.isLoaded() {
 		se.db.Close()
 	}
-	se.db = patternDb
+	se.db = newDB
 	se.patterns = compiledPatterns
-	var scratchErr error
-	switch se.scratch {
-	case nil:
-		se.scratch, scratchErr = hyperscan.NewScratch(se.db)
-	default:
-		scratchErr = se.scratch.Realloc(se.db)
+	if se.scratch != nil {
+		se.scratch.Free()
 	}
-	if scratchErr == nil {
-		se.setLoaded()
-	}
+	se.scratch = newScratch
+	se.setLoaded()
 	se.mu.Unlock()
 
 	return scratchErr
