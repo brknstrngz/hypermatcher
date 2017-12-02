@@ -6,7 +6,7 @@ go:
   - master
 
 install:
-  - go get github.com/flier/gohs
+  - go get github.com/flier/gohs/hyperscan
   - go get github.com/golang/lint/golint
 
 before_script:
