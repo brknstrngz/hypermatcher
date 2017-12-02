@@ -2,3 +2,14 @@ language: go
   - 1.8
   - 1.9
   - master
+
+install:
+  - go get github.com/flier/gohs
+  - go get github.com/golang/lint/golint
+
+before_script:
+  - golint ./...
+  - go vet ./...
+
+script:
+  - go test ./...
