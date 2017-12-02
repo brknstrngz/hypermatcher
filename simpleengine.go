@@ -18,12 +18,21 @@ type SimpleEngine struct {
 	mu       sync.RWMutex
 }
 
-// NewSimpleEngine returns a SimpleEngine
+var (
+	simpleEngine      *SimpleEngine
+	simpleEngineGuard sync.Once
+)
+
+// NewSimpleEngine returns a singleton SimpleEngine
 func NewSimpleEngine() *SimpleEngine {
-	return &SimpleEngine{
-		patterns: make([]*hyperscan.Pattern, 0),
-		mu:       sync.RWMutex{},
-	}
+	simpleEngineGuard.Do(func() {
+		simpleEngine = &SimpleEngine{
+			patterns: make([]*hyperscan.Pattern, 0),
+			mu:       sync.RWMutex{},
+		}
+	})
+
+	return simpleEngine
 }
 
 // Update re-initializes the pattern database used by the
