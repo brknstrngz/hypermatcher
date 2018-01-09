@@ -73,7 +73,7 @@ func (se *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
 		return nil, ErrNotLoaded
 	}
 
-	var matched = make([]uint, 0)
+	var matched = make(map[uint]struct{}, 0)
 	// we take a write lock as se.scratch is written to
 	se.mu.Lock()
 	var scanErr = se.db.Scan(

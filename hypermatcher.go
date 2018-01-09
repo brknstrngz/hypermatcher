@@ -74,23 +74,16 @@ func buildDatabase(patterns []*hyperscan.Pattern) (hyperscan.VectoredDatabase, e
 }
 
 var matchHandler = func(id uint, from, to uint64, flags uint, context interface{}) error {
-	var matched = context.(*[]uint)
-	*matched = append(*matched, id)
+	var matched = context.(*map[uint]struct{})
+	(*matched)[id] = struct{}{}
 
 	return nil
 }
 
-func matchedIdxToStrings(matched []uint, patterns []*hyperscan.Pattern) []string {
-	var matchedSieve = make(map[uint]struct{}, 0)
-	for _, patIdx := range matched {
-		matchedSieve[patIdx] = struct{}{}
-	}
-
-	var matchedPatterns = make([]string, len(matchedSieve))
-	var matchPatternsIdx int
-	for patternsIdx := range matchedSieve {
-		matchedPatterns[matchPatternsIdx] = patterns[patternsIdx].Expression.String()
-		matchPatternsIdx++
+func matchedIdxToStrings(matched map[uint]struct{}, patterns []*hyperscan.Pattern) []string {
+	var matchedPatterns = make([]string, len(matched))
+	for patternsIdx := range matched {
+		matchedPatterns[patternsIdx] = patterns[patternsIdx].Expression.String()
 	}
 
 	return matchedPatterns
