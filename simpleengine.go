@@ -8,8 +8,7 @@ import (
 	"github.com/flier/gohs/hyperscan"
 )
 
-// SimpleEngine is a simple hypermatcher.Engine implementation
-// with a single hyperscan.Scratch protected by a mutex
+// SimpleEngine is a basic Engine implementation with a single hyperscan.Scratch protected by a mutex
 type SimpleEngine struct {
 	patterns []*hyperscan.Pattern
 	db       hyperscan.VectoredDatabase
@@ -18,25 +17,15 @@ type SimpleEngine struct {
 	mu       sync.RWMutex
 }
 
-var (
-	simpleEngine      *SimpleEngine
-	simpleEngineGuard sync.Once
-)
-
-// NewSimpleEngine returns a singleton SimpleEngine
+// NewSimpleEngine returns a SimpleEngine instance
 func NewSimpleEngine() *SimpleEngine {
-	simpleEngineGuard.Do(func() {
-		simpleEngine = &SimpleEngine{
-			patterns: make([]*hyperscan.Pattern, 0),
-			mu:       sync.RWMutex{},
-		}
-	})
-
-	return simpleEngine
+	return &SimpleEngine{
+		patterns: make([]*hyperscan.Pattern, 0),
+		mu:       sync.RWMutex{},
+	}
 }
 
-// Update re-initializes the pattern database used by the
-// scanner, returning an error if any of them fails to parse
+// Update rebuilds the pattern database, returning an optional error
 func (se *SimpleEngine) Update(patterns []string) error {
 	if len(patterns) == 0 {
 		return ErrNoPatterns
@@ -74,11 +63,10 @@ func (se *SimpleEngine) Update(patterns []string) error {
 	se.setLoaded()
 	se.mu.Unlock()
 
-	return scratchErr
+	return nil
 }
 
-// Match takes a vectored string corpus and returns a list of strings
-// representing patterns that matched the corpus and an optional error
+// Match takes a vectored byte corpus and returns a slice of patterns that matched the corpus and an optional error
 func (se *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
 	// if the database has not yet been loaded, return an error
 	if !se.isLoaded() {
@@ -86,7 +74,7 @@ func (se *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
 	}
 
 	var matched = make([]uint, 0)
-
+	// we take a write lock as se.scratch is written to
 	se.mu.Lock()
 	var scanErr = se.db.Scan(
 		corpus,
@@ -110,8 +98,7 @@ func (se *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
 	return ret, nil
 }
 
-// MatchStrings takes a vectored string corpus and returns a list of strings
-// representing patterns that matched the corpus and an optional error
+// MatchStrings takes a vectored string corpus and returns a slice of patterns that matched the corpus and an optional error
 func (se *SimpleEngine) MatchStrings(corpus []string) ([]string, error) {
 	return se.Match(stringsToBytes(corpus))
 }

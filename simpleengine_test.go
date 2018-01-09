@@ -6,19 +6,6 @@ import (
 	"testing"
 )
 
-func Test_SimpleEngineSingleton(t *testing.T) {
-    t.Parallel()
-
-    var (
-        engine1 = NewSimpleEngine()
-        engine2 = NewSimpleEngine()
-    )
-
-    if !reflect.DeepEqual(engine1, engine2) {
-        t.Errorf("%#v != %#v", engine1, engine2)
-    }
-}
-
 func Test_SimpleEngineUpdatePatterns(t *testing.T) {
 	t.Parallel()
 

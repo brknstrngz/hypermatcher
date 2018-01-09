@@ -19,13 +19,11 @@ var (
 )
 
 func compilePatterns(patterns []string) ([]*hyperscan.Pattern, error) {
-	// pattern compilation can run concurrently with a sizable speedup:
-	// in one goroutine for each available CPU we try to compile each
-	// pattern, adding the compiled version to the compiledPatterns
-	// slice on success or adding the error to the compileErrors slice
-	// on failure
-	// as goroutines operate on different subsets of preallocated slices
-	// we can avoid locking
+	// pattern compilation runs concurrently with sizable speedup: each
+	// compiled pattern is added to the compiledPatterns slice  on success
+	// or an error is added to the compileErrors slice on  failure; as
+	// goroutines operate on different ranges of the input slice, we do not
+	// need locking
 	var wg sync.WaitGroup
 	var compiledPatterns = make([]*hyperscan.Pattern, len(patterns))
 	var compileErrors = make([]error, len(patterns))
@@ -120,15 +118,15 @@ func stringToByteSlice(input string) []byte {
 }
 
 func subSlices(slice []*hyperscan.Pattern, numSlices int) [][2]int {
-	var elemsPerPiece = len(slice) / numSlices
+	var numPerSlice = len(slice) / numSlices
 	var splitIndices = make([][2]int, 0)
 
 	for i := 0; i < numSlices; i++ {
-		splitIndices = append(splitIndices, [2]int{i * elemsPerPiece, (i + 1) * elemsPerPiece})
+		splitIndices = append(splitIndices, [2]int{i * numPerSlice, (i + 1) * numPerSlice})
 	}
 
-	if numSlices*elemsPerPiece < len(slice) {
-		splitIndices = append(splitIndices, [2]int{numSlices * elemsPerPiece, len(slice)})
+	if numSlices*numPerSlice < len(slice) {
+		splitIndices = append(splitIndices, [2]int{numSlices * numPerSlice, len(slice)})
 	}
 
 	return splitIndices
