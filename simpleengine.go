@@ -88,15 +88,12 @@ func (se *SimpleEngine) Match(corpus [][]byte) ([]string, error) {
 		se.mu.Unlock()
 		return nil, scanErr
 	}
-	se.mu.Unlock()
 
 	// response.matched contains indices of matched expressions. each
 	// index can appear more than once as every expression can match
-	// several of the input strings, so we aggregate them here. we hold
-	// a read lock on se.patterns in case Update() is called during aggregation
-	se.mu.RLock()
+	// several of the input strings, so we aggregate them here
 	var matchedPatterns = matchedIdxToPatterns(matched, se.patterns)
-	se.mu.RUnlock()
+	se.mu.Unlock()
 
 	return matchedPatterns, nil
 }
