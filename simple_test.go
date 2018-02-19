@@ -9,7 +9,7 @@ import (
 func Test_SimpleEngineUpdatePatterns(t *testing.T) {
 	t.Parallel()
 
-	var engine = NewSimpleEngine()
+	var engine = NewSimple()
 	var tests = []struct {
 		name     string
 		patterns []string
@@ -40,14 +40,14 @@ func Test_SimpleEngineMatch(t *testing.T) {
 
 	var tests = []struct {
 		name        string
-		engineGen   func() *SimpleEngine
+		engineGen   func() *Simple
 		corpus      []string
 		wantMatches []string
 		wantErr     error
 	}{
 		{"Patterns not loaded",
-			func() *SimpleEngine {
-				return NewSimpleEngine()
+			func() *Simple {
+				return NewSimple()
 			},
 			[]string{"corpus"},
 			nil,
@@ -55,8 +55,8 @@ func Test_SimpleEngineMatch(t *testing.T) {
 		},
 		{
 			"Match not found",
-			func() *SimpleEngine {
-				var engine = NewSimpleEngine()
+			func() *Simple {
+				var engine = NewSimple()
 				engine.Update([]string{"/someotherkeyword/"})
 
 				return engine
@@ -67,8 +67,8 @@ func Test_SimpleEngineMatch(t *testing.T) {
 		},
 		{
 			"Exact match found",
-			func() *SimpleEngine {
-				var engine = NewSimpleEngine()
+			func() *Simple {
+				var engine = NewSimple()
 				engine.Update([]string{"/corpus/"})
 
 				return engine
@@ -79,8 +79,8 @@ func Test_SimpleEngineMatch(t *testing.T) {
 		},
 		{
 			"Case insensitive match found",
-			func() *SimpleEngine {
-				var engine = NewSimpleEngine()
+			func() *Simple {
+				var engine = NewSimple()
 				engine.Update([]string{"/cOrPuS/i"})
 
 				return engine
@@ -91,8 +91,8 @@ func Test_SimpleEngineMatch(t *testing.T) {
 		},
 		{
 			"Multiple matches found",
-			func() *SimpleEngine {
-				var engine = NewSimpleEngine()
+			func() *Simple {
+				var engine = NewSimple()
 				engine.Update([]string{"/cOrPuS/i", "/pus/i"})
 
 				return engine
@@ -103,8 +103,8 @@ func Test_SimpleEngineMatch(t *testing.T) {
 		},
 		{
 			"Front anchored expression does not match",
-			func() *SimpleEngine {
-				var engine = NewSimpleEngine()
+			func() *Simple {
+				var engine = NewSimple()
 				engine.Update([]string{"/^cOrPuS/i"})
 
 				return engine
@@ -115,8 +115,8 @@ func Test_SimpleEngineMatch(t *testing.T) {
 		},
 		{
 			"Back anchored expression does not match",
-			func() *SimpleEngine {
-				var engine = NewSimpleEngine()
+			func() *Simple {
+				var engine = NewSimple()
 				engine.Update([]string{"/cOrPuS$/i"})
 
 				return engine
@@ -127,8 +127,8 @@ func Test_SimpleEngineMatch(t *testing.T) {
 		},
 		{
 			"Anchored expression does not match",
-			func() *SimpleEngine {
-				var engine = NewSimpleEngine()
+			func() *Simple {
+				var engine = NewSimple()
 				engine.Update([]string{"/^cOrPuS$/i"})
 
 				return engine
